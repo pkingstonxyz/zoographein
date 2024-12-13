@@ -1,4 +1,3 @@
-
 function Cell(isseed, active, color, xpos, ypos) {
   this.isseed = isseed; //bool
   this.active = active; //int
@@ -17,7 +16,7 @@ function SquareBrush() {
 }
 
 let canvas_size, background_color, cells;
-let palette, transitions;
+let palette, transitions, active_color;
 let stroke, active_strokes;
 let brush, brush_size, brushsizeslider, brushradioselector;
 
@@ -28,8 +27,11 @@ function mainsketch(p){
 
     // The palette for the has 8 items, each is a color's hex value
     // TODO: base on ingesting image
-    palette = [0x000, 0xfff, 0xf00, 0x0f0, 
-      0x00f, 0xff0, 0xf0f, 0x0ff];
+    palette = [p.color(0,0,0), p.color(255,255,255), 
+      p.color(255,0,0), p.color(0, 255, 0),
+      p.color(0,0,255), p.color(255, 255, 0),
+      p.color(255, 0, 255), p.color(0, 255, 255)];
+    active_color = 0;
     // Basic transition table that will flip between black and white
     // TODO: base on ingesting image
     transitions = {0: {0: 0.2,
@@ -74,10 +76,15 @@ function mainsketch(p){
     //////////////////
     // HANDLE INPUT //
     //////////////////
-    if (p.mousePressed) {
+    if (p.mouseIsPressed) {
       // Initialize a stroke
       active_strokes.push(stroke);
       stroke += 1;
+      if (brush == 'square') {
+      }
+      if (brush == 'circle') {
+
+      }
     }
     ///////////////
     // DRAW STEP //
@@ -94,36 +101,93 @@ function mainsketch(p){
 }
 
 
+/////////////////////
+/// CONTROL PANEL ///
+/////////////////////
+
 function controls(p) {
   p.setup = function () {
     p.createCanvas(canvas_size, 103);
     //Create a slider with a min of 3, max of 101, default of 51, and step of 2
     brushsizeslider = p.createSlider(3, 101, 51, 2);
-    brushsizeslider.position(110, 90+canvas_size);
+    brushsizeslider.position(110, 80+canvas_size);
     brushsizeslider.size(100);
 
     brushradioselector = p.createRadio();
-    brushradioselector.position(110, 10+canvas_size);
+    brushradioselector.position(110, 25+canvas_size);
     brushradioselector.option('square');
-    p.rectMode(p.CENTER);
     brushradioselector.option('circle');
     brushradioselector.selected('square');
+    brushradioselector.size(65);
   };
   p.draw = function () {
-    p.background('white');
+    p.background('#dddddd');
     brush          = brushradioselector.value();
     brush_size     = brushsizeslider.value();
 
+    p.rectMode(p.CENTER);
+    p.fill('white');
+    p.stroke('black');
+    p.strokeWeight(1);
+    // Draw the brush preview
     if (brush == 'circle') {
       p.circle(51, 51, brush_size);
     }
     if (brush == 'square') {
       p.rect(51, 51, brush_size, brush_size);
     }
+    p.fill(palette[active_color]);
+    p.stroke(palette[active_color]);
+    p.circle(51, 51, 1);
 
+    // Draw the color selectors
+    p.rectMode(p.CORNERS);
+    p.strokeWeight(0);
+    for (var i = 0; i < 8; i++) {
+      //map the index to coordinates
+      let topleftx = (i % 4);
+      let toplefty;
+      if (i < 4) {
+        toplefty = 0;
+      } else {
+        toplefty = 1;
+      }
+      //scale it up
+      topleftx = topleftx * 50;
+      toplefty = toplefty * 50;
+      //shift it over
+      topleftx = topleftx + 210; //THIS VALUE USED LATER
+      cornershift = 50;
+      if (i == active_color) {
+        topleftx = topleftx + 5;
+        toplefty = toplefty + 5;
+        cornershift = cornershift - 10;
+      } else {
+      }
+      p.fill(palette[i]);
+      p.rect(topleftx, toplefty, topleftx + cornershift, toplefty + cornershift);
+    }
   };
+
+  p.mousePressed = function () {
+    let x = p.mouseX;
+    let y = p.mouseY;
+    // Do the drawing process backwards
+    xind = x - 210;
+    yind = y;
+    xind = xind/50;
+    yind = yind/50;
+    if (xind < 0 || yind < 0) {
+      return;
+    }
+    xind = p.floor(xind);
+    yind = p.floor(yind);
+    let index = yind * 4 + xind;
+    console.log("(" + p.str(xind) + ", " + p.str(yind) + ")");
+    console.log(p.str(index));
+    active_color = index;
+  }
 }
 
-//We need the controls before the mainsketch
 new p5(mainsketch);
 new p5(controls);
