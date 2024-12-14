@@ -16,6 +16,7 @@ function SquareBrush() {
 }
 
 let canvas_size, background_color, cells;
+let clearcanvasbutton, downloadimagebutton;
 let palette, transitions, active_color;
 let stroke, active_strokes;
 let brush, brush_size, brushsizeslider, brushradioselector;
@@ -39,7 +40,7 @@ function mainsketch(p){
       1: {0: 0.8,
         1: 0.2}};
     // TODO: Make changable
-    background_color = 0x000;
+    background_color = 3;
 
     // Initialize array of cells
     cells = [];
@@ -56,7 +57,7 @@ function mainsketch(p){
     active_strokes = [];
 
     // Create a canvas 400x400 pixels
-    p.createCanvas(canvas_size, canvas_size);
+    let maincanvas = p.createCanvas(canvas_size, canvas_size);
 
     // Make pixels accessible
     p.loadPixels();
@@ -69,6 +70,13 @@ function mainsketch(p){
       }
     }
     p.updatePixels();
+
+    // Add the save button
+    downloadimagebutton = p.createButton("download");
+    downloadimagebutton.position(430, 50+canvas_size);
+    downloadimagebutton.mousePressed(function() {
+      p.save(maincanvas, 'mypainting.jpg');
+    });
   };
 
   // Draw function, loops continuously after setup
@@ -80,10 +88,24 @@ function mainsketch(p){
       // Initialize a stroke
       active_strokes.push(stroke);
       stroke += 1;
-      if (brush == 'square') {
-      }
-      if (brush == 'circle') {
-
+      let xpos = p.floor(p.mouseX);
+      let ypos = p.floor(p.mouseY);
+      let radius = (brush_size - 1)/2;
+      for (var xcell = xpos - radius; xcell < xpos + radius + 1; xcell++) {
+        for (var ycell = ypos - radius; ycell < ypos + radius + 1; ycell++) {
+          if (xcell < 0 || ycell < 0 || xcell >= canvas_size || ycell >= canvas_size) {
+            continue;
+          }
+          if (brush == 'square') {
+            cells[ycell][xcell].active = true;
+            cells[ycell][xcell].color = active_color;
+          } else {
+            if (p.dist(xpos, ypos, xcell, ycell) < radius) {
+              cells[ycell][xcell].active = true;
+              cells[ycell][xcell].color = active_color;
+            }
+          }
+        }
       }
     }
     ///////////////
@@ -93,10 +115,25 @@ function mainsketch(p){
     for (var i = 0; i < cells.length; i++) {
       for (var j = 0; j < cells[0].length; j++) {
         cell = cells[i][j];
-        p.set(cell.xpos, cell.ypos, cell.color);
+        p.set(cell.xpos, cell.ypos, palette[cell.color]);
       }
     }
     p.updatePixels();
+
+    // Draw the brush on top
+    p.ellipseMode(p.RADIUS);
+    p.strokeWeight(1);
+    p.fill(p.color(0, 0, 0, 0));
+    p.stroke(p.lerpColor(p.color(255, 255, 255), 
+      p.color(100, 100, 100),
+      p.sin(p.millis()/150)));
+    if (brush == 'circle') {
+      p.circle(p.mouseX, p.mouseY, brush_size/2);
+    }
+    if (brush == 'square') {
+      p.rectMode(p.RADIUS);
+      p.rect(p.mouseX, p.mouseY, brush_size/2);
+    }
   };
 }
 
@@ -119,6 +156,17 @@ function controls(p) {
     brushradioselector.option('circle');
     brushradioselector.selected('square');
     brushradioselector.size(65);
+
+    clearcanvasbutton = p.createButton("clear");
+    clearcanvasbutton.position(430, 80+canvas_size);
+    clearcanvasbutton.mousePressed(function() {
+      for (var i = 0; i < cells.length; i++) {
+        for (var j = 0; j < cells[i].length; j++) {
+          cells[i][j].active = false;
+          cells[i][j].color = active_color;
+        }
+      }
+    });
   };
   p.draw = function () {
     p.background('#dddddd');
@@ -172,6 +220,9 @@ function controls(p) {
   p.mousePressed = function () {
     let x = p.mouseX;
     let y = p.mouseY;
+    if (x < 210 || x > (210+50*4) || y < 0 || y > 101) {
+      return;
+    }
     // Do the drawing process backwards
     xind = x - 210;
     yind = y;
@@ -183,6 +234,9 @@ function controls(p) {
     xind = p.floor(xind);
     yind = p.floor(yind);
     let index = yind * 4 + xind;
+    if (index > 7) {
+      return;
+    }
     console.log("(" + p.str(xind) + ", " + p.str(yind) + ")");
     console.log(p.str(index));
     active_color = index;
