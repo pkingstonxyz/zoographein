@@ -1,30 +1,27 @@
-function Cell(isseed, active, color, xpos, ypos) {
-  this.isseed = isseed; //bool
-  this.active = active; //int
+function Cell(active, color, xpos, ypos) {
+  this.active = active; //bool
   this.color = color; //int index <8
-  this.xpos = xpos; //int <600
-  this.ypos = ypos; //int <600
-}
-
-// The two brushes have the same interface but there's only two so I'm not going
-// to do any sort of inheritance heirarchy
-function CircleBrush() {
-  this.size;
-}
-function SquareBrush() {
-  this.size;
+  this.xpos = xpos; //int <canvas_size
+  this.ypos = ypos; //int <canvas_size
 }
 
 let canvas_size, background_color, cells;
 let clearcanvasbutton, downloadimagebutton;
 let palette, transitions, active_color;
-let stroke, active_strokes;
+let stroked_cells, strokenum, linearize, delinearize;
+let transition_speed, transitionspeedslider;
 let brush, brush_size, brushsizeslider, brushradioselector;
 
 function mainsketch(p){
   p.setup = function () {
     // Constants
     canvas_size = 600;
+    linearize = function(x, y) {
+      return y*canvas_size + x;
+    };
+    delinearize = function(ind) {
+      return [p.floor(ind/canvas_size), ind % canvas_size];
+    }
 
     // The palette for the has 8 items, each is a color's hex value
     // TODO: base on ingesting image
@@ -35,11 +32,7 @@ function mainsketch(p){
     active_color = 0;
     // Basic transition table that will flip between black and white
     // TODO: base on ingesting image
-    transitions = {0: {0: 0.2,
-      1: 0.8,},
-      1: {0: 0.8,
-        1: 0.2}};
-    // TODO: Make changable
+    transitions = [[1], [2], [3], [4], [5], [6], [7], [0]];
     background_color = 3;
 
     // Initialize array of cells
@@ -47,14 +40,14 @@ function mainsketch(p){
     for (var i = 0; i < canvas_size; i++) {
       cells.push([]);
       for (var j = 0; j < canvas_size; j++) {
-        cells[i].push(new Cell(false, 0, background_color, j, i));
-        // Cells start out NOT as seeds, inactive, default color, with the right position
+        cells[i].push(new Cell(false, background_color, j, i));
+        // Cells start out as inactive, default color, with the right position
       }
     }
 
-    // Initialize active strokes (no strokes still active)
+    // Initialize strokes (no strokes still active)
     stroke = 1;
-    active_strokes = [];
+    stroked_cells = new Set();
 
     // Create a canvas 400x400 pixels
     let maincanvas = p.createCanvas(canvas_size, canvas_size);
@@ -86,28 +79,68 @@ function mainsketch(p){
     //////////////////
     if (p.mouseIsPressed) {
       // Initialize a stroke
-      active_strokes.push(stroke);
-      stroke += 1;
       let xpos = p.floor(p.mouseX);
       let ypos = p.floor(p.mouseY);
+      if (xpos < 0 || ypos < 0 || xpos >= canvas_size || ypos >= canvas_size) {
+        return;
+      }
       let radius = (brush_size - 1)/2;
       for (var xcell = xpos - radius; xcell < xpos + radius + 1; xcell++) {
         for (var ycell = ypos - radius; ycell < ypos + radius + 1; ycell++) {
           if (xcell < 0 || ycell < 0 || xcell >= canvas_size || ycell >= canvas_size) {
             continue;
           }
+          //Add the pixels to a set if they need to be handled.
+          //They need to be linearized because ints are easy to put into a set
           if (brush == 'square') {
-            cells[ycell][xcell].active = true;
-            cells[ycell][xcell].color = active_color;
+            stroked_cells.add(linearize(xcell, ycell));
           } else {
             if (p.dist(xpos, ypos, xcell, ycell) < radius) {
-              cells[ycell][xcell].active = true;
-              cells[ycell][xcell].color = active_color;
+              stroked_cells.add(linearize(xcell, ycell));
             }
           }
         }
       }
+      stroked_cells.delete(linearize(xcell, ycell));
+      //Color the center pixel
+      cells[ypos][xpos].color = active_color;
+      cells[ypos][xpos].active = true;
     }
+
+    // Handle speed cells
+    var needed = p.min(transition_speed, stroked_cells.size);
+    while (needed > 0) {
+      stroked_cells.forEach(function(ind) {
+        let [x, y] = delinearize(ind);
+        let can_markov = false;
+        let usable = [];
+        for (var ioffset = -1; i <= 1; ioffset++) {
+          for (var joffset = -1; j <= 1; joffset++) {
+            //Don't do the cell itself
+            if (ioffset == 0 && joffset == 0) {continue;}
+            i = y + ioffset; //Get the row in the 2d array
+            j = x + joffset; //Get the col in the 2d array
+            //Don't go out of bounds
+            if (i < 0 || j < 0 || i >= canvas_size || j >= canvas_size) {continue;}
+            //If it's active
+            if (cells[i][j].active) {
+              can_markov = true;
+              usable.push(linearize(j, i));
+            }
+          }
+        }
+        if (!can_markov) {
+          return;
+        }
+        //Get a random seed
+        let [parentx, parenty] = p.random(usable);
+        let parent = cells[parenty][parentx];
+        let next_color = p.random(transitions[parent.color]);
+        //decrement Next color
+        needed = needed - 1;
+      });
+    }
+
     ///////////////
     // DRAW STEP //
     ///////////////
@@ -147,9 +180,10 @@ function controls(p) {
     p.createCanvas(canvas_size, 103);
     //Create a slider with a min of 3, max of 101, default of 51, and step of 2
     brushsizeslider = p.createSlider(3, 101, 51, 2);
-    brushsizeslider.position(110, 80+canvas_size);
+    brushsizeslider.position(110, 90+canvas_size);
     brushsizeslider.size(100);
 
+    //Create radio buttons to select the brush shape
     brushradioselector = p.createRadio();
     brushradioselector.position(110, 25+canvas_size);
     brushradioselector.option('square');
@@ -157,6 +191,7 @@ function controls(p) {
     brushradioselector.selected('square');
     brushradioselector.size(65);
 
+    //Create a button that clears the canvas
     clearcanvasbutton = p.createButton("clear");
     clearcanvasbutton.position(430, 80+canvas_size);
     clearcanvasbutton.mousePressed(function() {
@@ -167,11 +202,22 @@ function controls(p) {
         }
       }
     });
+
+    //Create a slider that controls the brush speed
+    transitionspeedslider = p.createSlider(0, 200, 50);
+    transitionspeedslider.position(430, 20+canvas_size);
+    transitionspeedslider.size(160);
   };
   p.draw = function () {
     p.background('#dddddd');
-    brush          = brushradioselector.value();
-    brush_size     = brushsizeslider.value();
+    //Fetch updates each frame
+    brush            = brushradioselector.value();
+    brush_size       = brushsizeslider.value();
+    transition_speed = transitionspeedslider.value();
+
+    //Label the brush size slider
+    p.fill('black');
+    p.text("Brush Size:", 110, 75);
 
     p.rectMode(p.CENTER);
     p.fill('white');

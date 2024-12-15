@@ -15,7 +15,7 @@ Main goals:
    - [ ] Make it set the center pixel to the selected palette color
 1. [x] Allow the user to reset the image
 1. [x] Allow the user to download their image
-1. [ ] Allow the user to play/pause the pixel propagation
+1. [ ] Allow the user to stop/set speed of the pixel propagation
 1. [ ] Handle active pixels
 1. [ ] Quantize image into set colors
 1. [ ] Ingest image into markov table
