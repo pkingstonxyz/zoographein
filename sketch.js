@@ -108,50 +108,20 @@ function mainsketch(p){
     }
 
     // Handle speed cells
-    var needed = p.min(transition_speed, stroked_cells.size);
-    while (needed > 0) {
-      stroked_cells.forEach(function(ind) {
-        let [x, y] = delinearize(ind);
-        let can_markov = false;
-        let usable = [];
-        for (var ioffset = -1; i <= 1; ioffset++) {
-          for (var joffset = -1; j <= 1; joffset++) {
-            //Don't do the cell itself
-            if (ioffset == 0 && joffset == 0) {continue;}
-            i = y + ioffset; //Get the row in the 2d array
-            j = x + joffset; //Get the col in the 2d array
-            //Don't go out of bounds
-            if (i < 0 || j < 0 || i >= canvas_size || j >= canvas_size) {continue;}
-            //If it's active
-            if (cells[i][j].active) {
-              can_markov = true;
-              usable.push(linearize(j, i));
-            }
-          }
-        }
-        if (!can_markov) {
-          return;
-        }
-        //Get a random seed
-        let [parentx, parenty] = p.random(usable);
-        let parent = cells[parenty][parentx];
-        let next_color = p.random(transitions[parent.color]);
-        //decrement Next color
-        needed = needed - 1;
-      });
-    }
+    // AAAHH HOW DO I DO THIS 
+    // :(
+    p.updatePixels();
 
     ///////////////
     // DRAW STEP //
     ///////////////
     // Draw the cells every frame
-    for (var i = 0; i < cells.length; i++) {
-      for (var j = 0; j < cells[0].length; j++) {
-        cell = cells[i][j];
-        p.set(cell.xpos, cell.ypos, palette[cell.color]);
-      }
-    }
-    p.updatePixels();
+    //for (var i = 0; i < cells.length; i++) {
+    //  for (var j = 0; j < cells[0].length; j++) {
+    //    cell = cells[i][j];
+    //    p.set(cell.xpos, cell.ypos, palette[cell.color]);
+    //  }
+    //}
 
     // Draw the brush on top
     p.ellipseMode(p.RADIUS);
