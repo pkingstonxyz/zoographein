@@ -4,12 +4,59 @@ function Cell(active, color, xpos, ypos) {
   this.xpos = xpos; //int <canvas_size
   this.ypos = ypos; //int <canvas_size
 }
+function Stroke(xpos, ypos, brush, brushsize, color) {
+  this.xpos = xpos;
+  this.ypos = ypos;
+  this.brush = brush;
+  this.brushsize = brushsize;
+  this.color = color;
+}
+
+function StrokeQueue(linearizefn, delinearizefn) {
+  this.strokes = {};
+  this.queue = {};
+  this.front = 0;
+  this.back = 0;
+  this.linearize = linearizefn;
+  this.delinearize = delinearizefn;
+  this.enQ = function(stroke) {
+    //Add a cell to the queue and to the active set.
+    let linindex = this.linearize(stroke.xpos, stroke.ypos);
+    if (linindex in this.strokes) {
+      this.strokes[linindex] += 1;
+    } else {
+      this.strokes[linindex] = 1;
+    }
+    this.queue[this.back] = stroke;
+    this.back += 1;
+  };
+  this.deQ = function() {
+    let stroke = this.queue[this.front];
+    let linindex = this.linearize(stroke.xpos, stroke.ypos);
+    this.strokes[linindex] -= 1;
+    delete this.queue[this.front];
+    this.front += 1;
+    return stroke;
+  };
+  this.has = function(stroke) {
+    let linindex = this.linearize(stroke.xpos, stroke.ypos);
+    if (!(linindex in this.strokes)) {
+      return false;
+    }
+    else {
+      return (this.strokes[linindex] > 0);
+    }
+  };
+  this.empty = function() {
+    return this.front == this.back;
+  };
+}
 
 let canvas_size, background_color, cells;
 let clearcanvasbutton, downloadimagebutton;
 let palette, transitions, active_color;
-let stroked_cells, strokenum, linearize, delinearize;
-let transition_speed, transitionspeedslider;
+let stroked_cells, linearize, delinearize;
+let transition_speed, transitionspeedslider, transition_cell;
 let brush, brush_size, brushsizeslider, brushradioselector;
 
 function mainsketch(p){
@@ -32,8 +79,39 @@ function mainsketch(p){
     active_color = 0;
     // Basic transition table that will flip between black and white
     // TODO: base on ingesting image
-    transitions = [[1], [2], [3], [4], [5], [6], [7], [0]];
+    transitions = [[0], [2], [3], [4], [5], [6], [7], [0]];
     background_color = 3;
+    transition_cell = function(x, y) {
+      let cell = cells[y][x];
+      let transitionable_neighbors = [];
+      //Iterate through all the neighbors of the cell
+      let offsets = [[-1, 1],[ 0, 1],[ 1, 1],
+                     [-1, 0],        [ 1, 0],
+                     [-1,-1],[ 0,-1],[ 1,-1]];
+      //Get all the neighbors that are "active"
+      offsets.forEach(function(element) {
+        let neighborx = element[0] + x;
+        let neighbory = element[1] + y;
+        //bounds check
+        if (neighborx < 0 || neighbory < 0 || neighborx >= canvas_size || neighbory >= canvas_size) {
+          return;
+        }
+        let neighborcell = cells[neighbory][neighborx];
+        if (neighborcell.active) {
+          transitionable_neighbors.push(neighborcell.color);
+        }
+      });
+
+      if (transitionable_neighbors.length > 0) {
+        //Compute the transition
+        let transition_color_base = p.random(transitionable_neighbors);
+        let transitioned_color = p.random(transitions[transition_color_base]);
+        //Color the cell
+        cells[y][x].color = transitioned_color;
+        //And mark it active
+        cells[y][x].active = true;
+      }
+    }
 
     // Initialize array of cells
     cells = [];
@@ -46,8 +124,7 @@ function mainsketch(p){
     }
 
     // Initialize strokes (no strokes still active)
-    stroke = 1;
-    stroked_cells = new Set();
+    stroked_cells = new StrokeQueue(linearize, delinearize);
 
     // Create a canvas 400x400 pixels
     let maincanvas = p.createCanvas(canvas_size, canvas_size);
@@ -77,51 +154,105 @@ function mainsketch(p){
     //////////////////
     // HANDLE INPUT //
     //////////////////
-    if (p.mouseIsPressed) {
-      // Initialize a stroke
-      let xpos = p.floor(p.mouseX);
-      let ypos = p.floor(p.mouseY);
-      if (xpos < 0 || ypos < 0 || xpos >= canvas_size || ypos >= canvas_size) {
-        return;
-      }
-      let radius = (brush_size - 1)/2;
-      for (var xcell = xpos - radius; xcell < xpos + radius + 1; xcell++) {
-        for (var ycell = ypos - radius; ycell < ypos + radius + 1; ycell++) {
-          if (xcell < 0 || ycell < 0 || xcell >= canvas_size || ycell >= canvas_size) {
-            continue;
-          }
-          //Add the pixels to a set if they need to be handled.
-          //They need to be linearized because ints are easy to put into a set
-          if (brush == 'square') {
-            stroked_cells.add(linearize(xcell, ycell));
-          } else {
-            if (p.dist(xpos, ypos, xcell, ycell) < radius) {
-              stroked_cells.add(linearize(xcell, ycell));
-            }
-          }
-        }
-      }
-      stroked_cells.delete(linearize(xcell, ycell));
+    let xpos = p.floor(p.mouseX);
+    let ypos = p.floor(p.mouseY);
+    //If mouse pressed and not out of bounds
+    if (p.mouseIsPressed && !(xpos < 0 || ypos < 0 || xpos >= canvas_size || ypos >= canvas_size)) {
+      // Add the stroke to a queue
+      // xpos, ypos, stroke, radius, color
+      stroked_cells.enQ(new Stroke(xpos, ypos, brush, brush_size, active_color));
       //Color the center pixel
       cells[ypos][xpos].color = active_color;
       cells[ypos][xpos].active = true;
     }
 
-    // Handle speed cells
-    // AAAHH HOW DO I DO THIS 
-    // :(
-    p.updatePixels();
+    //get `speed` number of cells
+    for (var strokecount = 0; strokecount < transition_speed && !stroked_cells.empty(); strokecount++) {
+      let stroke = stroked_cells.deQ();
 
+      let rows = cells.length;
+      let cols = cells[0].length;
+      let centerX = stroke.xpos;
+      let centerY = stroke.ypos;
+      let maxradius = stroke.brushsize/2;
+      // Start with radius = 0 and expand outward
+      for (let radius = 0; radius < (stroke.brushsize/2); radius++) {
+        // Iterate over the top edge of the ring
+        for (let x = centerX - radius; x <= centerX + radius; x++) {
+          let y = centerY - radius;
+          //bounds check
+          if (x >= 0 && x < cols && y >= 0 && y < rows) {
+            //If the stroke is a circle then we need to pass on out of bounds
+            if (stroke.brush == 'circle') {
+              if (p.dist(centerX, centerY, x, y) > maxradius) {
+                continue;
+              }
+            }
+            transition_cell(x, y);
+            //cells[y][x].color = stroke.color;
+          }
+        }
+
+        // Iterate over the bottom edge of the ring
+        for (let x = centerX - radius; x <= centerX + radius; x++) {
+          let y = centerY + radius;
+          if (x >= 0 && x < cols && y >= 0 && y < rows) {
+            //If the stroke is a circle then we need to pass on out of bounds
+            if (stroke.brush == 'circle') {
+              if (p.dist(centerX, centerY, x, y) > maxradius) {
+                continue;
+              }
+            }
+            transition_cell(x, y);
+            //cells[y][x].color = stroke.color;
+            ;
+          }
+        }
+
+        // Iterate over the left edge of the ring
+        for (let y = centerY - radius + 1; y < centerY + radius; y++) {
+          let x = centerX - radius;
+          if (x >= 0 && x < cols && y >= 0 && y < rows) {
+            //If the stroke is a circle then we need to pass on out of bounds
+            if (stroke.brush == 'circle') {
+              if (p.dist(centerX, centerY, x, y) > maxradius) {
+                continue;
+              }
+            }
+            transition_cell(x, y);
+            //cells[y][x].color = stroke.color;
+            ;
+          }
+        }
+
+        // Iterate over the right edge of the ring
+        for (let y = centerY - radius + 1; y < centerY + radius; y++) {
+          let x = centerX + radius;
+          if (x >= 0 && x < cols && y >= 0 && y < rows) {
+            //If the stroke is a circle then we need to pass on out of bounds
+            if (stroke.brush == 'circle') {
+              if (p.dist(centerX, centerY, x, y) > maxradius) {
+                continue;
+              }
+            }
+            transition_cell(x, y);
+            //cells[y][x].color = stroke.color;
+            ;
+          }
+        }
+      }
+    }
     ///////////////
     // DRAW STEP //
     ///////////////
     // Draw the cells every frame
-    //for (var i = 0; i < cells.length; i++) {
-    //  for (var j = 0; j < cells[0].length; j++) {
-    //    cell = cells[i][j];
-    //    p.set(cell.xpos, cell.ypos, palette[cell.color]);
-    //  }
-    //}
+    for (var i = 0; i < cells.length; i++) {
+      for (var j = 0; j < cells[0].length; j++) {
+        cell = cells[i][j];
+        p.set(cell.xpos, cell.ypos, palette[cell.color]);
+      }
+    }
+    p.updatePixels();
 
     // Draw the brush on top
     p.ellipseMode(p.RADIUS);
@@ -174,7 +305,7 @@ function controls(p) {
     });
 
     //Create a slider that controls the brush speed
-    transitionspeedslider = p.createSlider(0, 200, 50);
+    transitionspeedslider = p.createSlider(0, 10, 1);
     transitionspeedslider.position(430, 20+canvas_size);
     transitionspeedslider.size(160);
   };
@@ -253,8 +384,6 @@ function controls(p) {
     if (index > 7) {
       return;
     }
-    console.log("(" + p.str(xind) + ", " + p.str(yind) + ")");
-    console.log(p.str(index));
     active_color = index;
   }
 }
