@@ -58,6 +58,7 @@ let palette, transitions, active_color;
 let stroked_cells, linearize, delinearize;
 let transition_speed, transitionspeedslider, transition_cell;
 let brush, brush_size, brushsizeslider, brushradioselector;
+let image, imageinput;
 
 function mainsketch(p){
   p.setup = function () {
@@ -72,16 +73,17 @@ function mainsketch(p){
 
     // The palette for the has 8 items, each is a color's hex value
     // TODO: base on ingesting image
-    palette = [p.color(0,0,0), p.color(255,255,255), 
-      p.color(255,0,0), p.color(0, 255, 0),
-      p.color(0,0,255), p.color(255, 255, 0),
-      p.color(255, 0, 255), p.color(0, 255, 255)];
+    palette = [p.color("#2F2F2F"), p.color("#4682B4"), p.color("#8B0000"), p.color("#C1443E"), p.color("#D2691E"), p.color("#DAA520"), p.color("#8B4513"), p.color("#556B2F")]
+    //palette = [p.color(0,0,0), p.color(255,255,255), 
+    //  p.color(255,0,0), p.color(0, 255, 0),
+    //  p.color(0,0,255), p.color(255, 255, 0),
+    //  p.color(255, 0, 255), p.color(0, 255, 255)];
     active_color = 0;
     // Basic transition table that will flip between black and white
     // TODO: base on ingesting image
-    transitions = [[0], [2], [3], [4], [5], [6], [7], [0]];
+    transitions = [[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0], [2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], [3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2], [4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3], [5,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4], [6,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5], [7,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6], [7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,0]];
     background_color = 3;
-    transition_cell = function(x, y) {
+    transition_cell = function(x, y, stroke_color) {
       let cell = cells[y][x];
       let transitionable_neighbors = [];
       //Iterate through all the neighbors of the cell
@@ -106,7 +108,10 @@ function mainsketch(p){
         //Compute the transition
         let transition_color_base = p.random(transitionable_neighbors);
         let transitioned_color = p.random(transitions[transition_color_base]);
-        //Color the cell
+        //Give it a 10% chance not to transition for some added user agency
+        if (p.random() < 0.1) {
+          transitioned_color = stroke_color;
+        }
         cells[y][x].color = transitioned_color;
         //And mark it active
         cells[y][x].active = true;
@@ -188,7 +193,7 @@ function mainsketch(p){
                 continue;
               }
             }
-            transition_cell(x, y);
+            transition_cell(x, y, stroke.color);
             //cells[y][x].color = stroke.color;
           }
         }
@@ -203,7 +208,7 @@ function mainsketch(p){
                 continue;
               }
             }
-            transition_cell(x, y);
+            transition_cell(x, y, stroke.color);
             //cells[y][x].color = stroke.color;
             ;
           }
@@ -219,7 +224,7 @@ function mainsketch(p){
                 continue;
               }
             }
-            transition_cell(x, y);
+            transition_cell(x, y, stroke.color);
             //cells[y][x].color = stroke.color;
             ;
           }
@@ -235,7 +240,7 @@ function mainsketch(p){
                 continue;
               }
             }
-            transition_cell(x, y);
+            transition_cell(x, y, stroke.color);
             //cells[y][x].color = stroke.color;
             ;
           }
@@ -253,6 +258,8 @@ function mainsketch(p){
       }
     }
     p.updatePixels();
+
+    //p.filter(p.BLUR, 5, false);
 
     // Draw the brush on top
     p.ellipseMode(p.RADIUS);
@@ -308,6 +315,38 @@ function controls(p) {
     transitionspeedslider = p.createSlider(0, 10, 1);
     transitionspeedslider.position(430, 20+canvas_size);
     transitionspeedslider.size(160);
+
+    //Create image handler
+    handleimage = function(file) {
+      if (file.type === 'image') {
+        //let myimage = p.createImage(file);
+        p.loadImage(file.data, (img) => {
+          //image = img; // Store the loaded image
+          img.filter(p.POSTERIZE, 3);
+          let colors = {};
+          for (var i = 0; i < img.height; i++) {
+            for (var j = 0; j < img.width; j++) {
+              let c = p.color(img.get(j, i));
+              if (!(c in colors)) {
+                colors[c] = 1;
+              } else {
+                colors[c] += 1;
+              }
+            }
+          }
+          palette = [];
+          for (var color in colors) {
+            palette.push(p.color(color));
+          }
+          console.log(colors);
+        });
+      } else {
+        img = null;
+      }
+    }
+    imageinput = p.createFileInput(handleimage);
+    imageinput.position(480, 80+canvas_size);
+    imageinput.size(110);
   };
   p.draw = function () {
     p.background('#dddddd');
@@ -338,21 +377,21 @@ function controls(p) {
     // Draw the color selectors
     p.rectMode(p.CORNERS);
     p.strokeWeight(0);
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0; i < palette.length; i++) {
       //map the index to coordinates
-      let topleftx = (i % 4);
+      let topleftx = (i % p.floor(palette.length/2));
       let toplefty;
-      if (i < 4) {
+      if (i < p.floor(palette.length/2)) {
         toplefty = 0;
       } else {
         toplefty = 1;
       }
       //scale it up
-      topleftx = topleftx * 50;
-      toplefty = toplefty * 50;
+      topleftx = topleftx * (200/(palette.length/2));
+      toplefty = toplefty * (200/(palette.length/2));
       //shift it over
       topleftx = topleftx + 210; //THIS VALUE USED LATER
-      cornershift = 50;
+      cornershift = (200/(palette.length/2));
       if (i == active_color) {
         topleftx = topleftx + 5;
         toplefty = toplefty + 5;
@@ -367,26 +406,37 @@ function controls(p) {
   p.mousePressed = function () {
     let x = p.mouseX;
     let y = p.mouseY;
-    if (x < 210 || x > (210+50*4) || y < 0 || y > 101) {
+    if (x < 210 || x > (210+(200/(palette.length/2))*(palette.length/2)) || y < 0 || y > 101) {
       return;
     }
     // Do the drawing process backwards
     xind = x - 210;
     yind = y;
-    xind = xind/50;
-    yind = yind/50;
+    xind = xind/(200/(palette.length/2));
+    yind = yind/(200/(palette.length/2));
     if (xind < 0 || yind < 0) {
       return;
     }
     xind = p.floor(xind);
     yind = p.floor(yind);
-    let index = yind * 4 + xind;
-    if (index > 7) {
+    let index = yind * p.floor(palette.length/2) + xind;
+    if (index > (palette.length - 1)) {
       return;
     }
     active_color = index;
   }
 }
 
+
+function imagecanvas(p) {
+  p.setup = function() {
+    //Create an image upload button
+    let canv = p.createCanvas(500,500);
+    //Hide when in production.
+    //p.hide();
+  }
+}
+
 new p5(mainsketch);
 new p5(controls);
+new p5(imagecanvas);

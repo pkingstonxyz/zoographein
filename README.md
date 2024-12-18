@@ -17,6 +17,10 @@ Main goals:
 1. [x] Allow the user to download their image
 1. [x] Allow the user to stop/set speed of the pixel propagation
 1. [x] Handle active pixels
-1. [ ] Allow user to upload image
-1. [ ] Quantize image into set colors and palette
+1. [x] Allow user to upload image
+1. [x] Quantize image into set colors and palette
+1. [ ] Fix the color picker
+1. [ ] Experiment with color averages based on posterized regions
 1. [ ] Ingest image into transition table
+1. [ ] Add brush "bleed"
+1. [ ] Pretiffy user interface
