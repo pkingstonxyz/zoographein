@@ -294,6 +294,12 @@ function mainsketch(p){
       p.rectMode(p.RADIUS);
       p.rect(p.mouseX, p.mouseY, brush_size/2);
     }
+    if (!playing) {
+      p.rectMode(p.CORNERS);
+      p.strokeWeight(5);
+      p.rect(550, 10, 565, 50);
+      p.rect(575, 10, 590, 50);
+    }
   };
 }
 
