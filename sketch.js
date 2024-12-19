@@ -54,9 +54,11 @@ function StrokeQueue(linearizefn, delinearizefn) {
 
 let canvas_size, background_color, cells;
 let clearcanvasbutton, downloadimagebutton;
+let active_palette, paletteselectorradio, palettes;
 let palette, transitions, active_color;
 let stroked_cells, linearize, delinearize;
-let transition_speed, transitionspeedslider, transition_cell;
+//transition_speed
+let playing, playpausebutton, transition_cell;
 let brush, brush_size, brushsizeslider, brushradioselector;
 let image, imageinput;
 
@@ -72,8 +74,30 @@ function mainsketch(p){
     }
 
     // The palette for the has 8 items, each is a color's hex value
-    // TODO: base on ingesting image
-    palette = [p.color("#2F2F2F"), p.color("#4682B4"), p.color("#8B0000"), p.color("#C1443E"), p.color("#D2691E"), p.color("#DAA520"), p.color("#8B4513"), p.color("#556B2F")]
+    // I asked chatgpt to generate these palettes
+    palettes = {};
+    palettes["autumn"] = [p.color("#2F2F2F"), p.color("#4682B4"), p.color("#8B0000"), p.color("#C1443E"), p.color("#D2691E"), p.color("#DAA520"), p.color("#8B4513"), p.color("#556B2F")];
+    palettes["summer"] = [
+  p.color("#FF5733"), // Bright Red-Orange (Sunset glow)
+  p.color("#FFA500"), // Orange (Citrus and summer vibes)
+  p.color("#FFD700"), // Golden Yellow (Sunshine)
+  p.color("#7FFF00"), // Lime Green (Freshness of summer grass)
+  p.color("#40E0D0"), // Turquoise (Tropical waters)
+  p.color("#1E90FF"), // Dodger Blue (Clear summer skies)
+  p.color("#FF69B4"), // Hot Pink (Summer flowers)
+  p.color("#FFFFFF")  // Pure White (Bright and clean contrast)
+];
+    palettes["winter"] = [
+  p.color("#1C1C2E"), // Deep Navy Blue (Cold winter nights)
+  p.color("#5B8DBF"), // Frosty Blue (Snow shadows and icy tones)
+  p.color("#D6EAF8"), // Pale Ice Blue (Frozen lakes and frost)
+  p.color("#F8F9F9"), // Soft White (Fresh snow)
+  p.color("#BCC6CC"), // Cool Gray (Overcast skies)
+  p.color("#8A7B99"), // Muted Purple (Winter twilight)
+  p.color("#A52A2A"), // Warm Brown (Cozy fireplaces and wooden cabins)
+  p.color("#FFFFFF")  // Pure White (Bright snow contrast)
+];
+    palette = palettes["autumn"];
     //palette = [p.color(0,0,0), p.color(255,255,255), 
     //  p.color(255,0,0), p.color(0, 255, 0),
     //  p.color(0,0,255), p.color(255, 255, 0),
@@ -148,7 +172,7 @@ function mainsketch(p){
 
     // Add the save button
     downloadimagebutton = p.createButton("download");
-    downloadimagebutton.position(430, 50+canvas_size);
+    downloadimagebutton.position(520, 50+canvas_size);
     downloadimagebutton.mousePressed(function() {
       p.save(maincanvas, 'mypainting.jpg');
     });
@@ -172,7 +196,7 @@ function mainsketch(p){
     }
 
     //get `speed` number of cells
-    for (var strokecount = 0; strokecount < transition_speed && !stroked_cells.empty(); strokecount++) {
+    if (playing && !stroked_cells.empty()) {
       let stroke = stroked_cells.deQ();
 
       let rows = cells.length;
@@ -181,7 +205,7 @@ function mainsketch(p){
       let centerY = stroke.ypos;
       let maxradius = stroke.brushsize/2;
       // Start with radius = 0 and expand outward
-      for (let radius = 0; radius < (stroke.brushsize/2); radius++) {
+      for (let radius = 0; radius < maxradius; radius++) {
         // Iterate over the top edge of the ring
         for (let x = centerX - radius; x <= centerX + radius; x++) {
           let y = centerY - radius;
@@ -194,7 +218,6 @@ function mainsketch(p){
               }
             }
             transition_cell(x, y, stroke.color);
-            //cells[y][x].color = stroke.color;
           }
         }
 
@@ -209,8 +232,6 @@ function mainsketch(p){
               }
             }
             transition_cell(x, y, stroke.color);
-            //cells[y][x].color = stroke.color;
-            ;
           }
         }
 
@@ -224,9 +245,8 @@ function mainsketch(p){
                 continue;
               }
             }
+
             transition_cell(x, y, stroke.color);
-            //cells[y][x].color = stroke.color;
-            ;
           }
         }
 
@@ -240,9 +260,8 @@ function mainsketch(p){
                 continue;
               }
             }
+
             transition_cell(x, y, stroke.color);
-            //cells[y][x].color = stroke.color;
-            ;
           }
         }
       }
@@ -292,7 +311,7 @@ function controls(p) {
     brushsizeslider.size(100);
 
     //Create radio buttons to select the brush shape
-    brushradioselector = p.createRadio();
+    brushradioselector = p.createRadio("square");
     brushradioselector.position(110, 25+canvas_size);
     brushradioselector.option('square');
     brushradioselector.option('circle');
@@ -301,7 +320,7 @@ function controls(p) {
 
     //Create a button that clears the canvas
     clearcanvasbutton = p.createButton("clear");
-    clearcanvasbutton.position(430, 80+canvas_size);
+    clearcanvasbutton.position(550, 80+canvas_size);
     clearcanvasbutton.mousePressed(function() {
       for (var i = 0; i < cells.length; i++) {
         for (var j = 0; j < cells[i].length; j++) {
@@ -311,49 +330,34 @@ function controls(p) {
       }
     });
 
-    //Create a slider that controls the brush speed
-    transitionspeedslider = p.createSlider(0, 10, 1);
-    transitionspeedslider.position(430, 20+canvas_size);
-    transitionspeedslider.size(160);
+    //Palette selector button
+    paletteselectorradio = p.createRadio("autumn");
+    paletteselectorradio.position(430, 50+canvas_size);
+    paletteselectorradio.option('autumn');
+    paletteselectorradio.option('summer');
+    paletteselectorradio.option('winter');
+    paletteselectorradio.selected('autumn');
+    paletteselectorradio.size(75);
 
-    //Create image handler
-    handleimage = function(file) {
-      if (file.type === 'image') {
-        //let myimage = p.createImage(file);
-        p.loadImage(file.data, (img) => {
-          //image = img; // Store the loaded image
-          img.filter(p.POSTERIZE, 3);
-          let colors = {};
-          for (var i = 0; i < img.height; i++) {
-            for (var j = 0; j < img.width; j++) {
-              let c = p.color(img.get(j, i));
-              if (!(c in colors)) {
-                colors[c] = 1;
-              } else {
-                colors[c] += 1;
-              }
-            }
-          }
-          palette = [];
-          for (var color in colors) {
-            palette.push(p.color(color));
-          }
-          console.log(colors);
-        });
-      } else {
-        img = null;
-      }
-    }
-    imageinput = p.createFileInput(handleimage);
-    imageinput.position(480, 80+canvas_size);
-    imageinput.size(110);
+    //Create a toggle that determines if it's simulating.
+    playing = false;
+    playpausebutton = p.createButton('toggle play/pause');
+    playpausebutton.mousePressed(function() {
+      playing = !playing;
+    });
+    playpausebutton.position(430, 20+canvas_size);
+    playpausebutton.size(162);
+
   };
   p.draw = function () {
     p.background('#dddddd');
     //Fetch updates each frame
     brush            = brushradioselector.value();
     brush_size       = brushsizeslider.value();
-    transition_speed = transitionspeedslider.value();
+
+    let curselected = paletteselectorradio.value();
+    active_palette = curselected;
+    palette = palettes[active_palette];
 
     //Label the brush size slider
     p.fill('black');
@@ -428,15 +432,6 @@ function controls(p) {
 }
 
 
-function imagecanvas(p) {
-  p.setup = function() {
-    //Create an image upload button
-    let canv = p.createCanvas(500,500);
-    //Hide when in production.
-    //p.hide();
-  }
-}
 
 new p5(mainsketch);
 new p5(controls);
-new p5(imagecanvas);

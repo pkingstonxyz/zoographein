@@ -19,8 +19,9 @@ Main goals:
 1. [x] Handle active pixels
 1. [x] Allow user to upload image
 1. [x] Quantize image into set colors and palette
-1. [ ] Fix the color picker
-1. [ ] Experiment with color averages based on posterized regions
-1. [ ] Ingest image into transition table
+1. [ ] Remove The image upload feature
+1. [ ] Change speed slider to play/pause
+1. [ ] Add saving of the "strokes"
+1. [ ] Add swappable palette
 1. [ ] Add brush "bleed"
 1. [ ] Pretiffy user interface
